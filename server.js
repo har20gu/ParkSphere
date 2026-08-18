@@ -11,8 +11,30 @@ const path = require("path");
 require("dotenv").config();
 
 const app = express();
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  process.env.FRONTEND_URL,
+  process.env.VITE_API_URL,
+  process.env.CLIENT_URL
+].filter(Boolean);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  return /https:\/\/.*\.vercel\.app$/i.test(origin);
+};
+
+app.set("trust proxy", 1);
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: function (origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error("Not allowed by CORS"));
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -27,9 +49,14 @@ app.use(
     saveUninitialized: false,
     store: MongoStore.create({
       mongoUrl: process.env.MONGO_URI,
-      collectionName: 'sessions'
+      collectionName: "sessions"
     }),
-    cookie: { maxAge: 1000 * 60 * 60 * 8 }
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 8,
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      secure: process.env.NODE_ENV === "production"
+    }
   })
 );
 
